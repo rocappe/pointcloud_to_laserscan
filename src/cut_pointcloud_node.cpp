@@ -238,15 +238,20 @@ void CutPointCloudNode::cloudCallback(
         angle, angle_min_, angle_max_);
       continue;
     }
-    (*cut_cloud).emplace_back(pcl::PointXYZ(static_cast<float> (*iter_x), static_cast<float> (*iter_y), static_cast<float> (*iter_z)));
+    uint8_t transparancy = 0;
+    auto rgba = std::make_shared<uint32_t>(((*iter_r)<<24) + ((*iter_g)<<16) + ((*iter_b)<<8) + transparancy);
+    (*cut_cloud).emplace_back(pcl::PointXYZ(static_cast<float> (*iter_x), static_cast<float> (*iter_y),
+                                               static_cast<float> (*iter_z));
 
   }
   auto cut_cloud_msg = std::make_shared<sensor_msgs::msg::PointCloud2>();
   pcl::toROSMsg(*cut_cloud, *cut_cloud_msg);
-  cut_cloud_msg->header.frame_id = target_frame_;
-  
   auto stop = std::chrono::high_resolution_clock::now();
   auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(stop-start);
+  cut_cloud_msg->header.frame_id = target_frame_;
+  cut_cloud_msg->header.stamp = rclcpp::Time(cloud_msg->header.stamp) + rclcpp::Duration(duration);
+  
+
   std::string out;
   out = std::to_string(duration.count()) + " ms";
   
