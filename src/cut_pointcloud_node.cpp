@@ -238,10 +238,10 @@ void CutPointCloudNode::cloudCallback(
         angle, angle_min_, angle_max_);
       continue;
     }
-    uint8_t transparancy = 0;
-    auto rgba = std::make_shared<uint32_t>(((*iter_r)<<24) + ((*iter_g)<<16) + ((*iter_b)<<8) + transparancy);
+    //uint8_t transparancy = 0;
+    //auto rgba = std::make_shared<uint32_t>(((*iter_r)<<24) + ((*iter_g)<<16) + ((*iter_b)<<8) + transparancy);
     (*cut_cloud).emplace_back(pcl::PointXYZ(static_cast<float> (*iter_x), static_cast<float> (*iter_y),
-                                               static_cast<float> (*iter_z));
+                                               static_cast<float> (*iter_z)));
 
   }
   auto cut_cloud_msg = std::make_shared<sensor_msgs::msg::PointCloud2>();
