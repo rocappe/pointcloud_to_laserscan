@@ -38,8 +38,8 @@
  * Author: Paul Bovbel
  */
 
-#ifndef POINTCLOUD_TO_LASERSCAN__POINTCLOUD_TO_LASERSCAN_NODE_HPP_
-#define POINTCLOUD_TO_LASERSCAN__POINTCLOUD_TO_LASERSCAN_NODE_HPP_
+#ifndef CUT_POINTCLOUD_NODE_HPP_
+#define CUT_POINTCLOUD_NODE_HPP_
 
 #include <atomic>
 #include <memory>
@@ -58,6 +58,9 @@
 
 #include "pointcloud_to_laserscan/visibility_control.h"
 
+#include "pcl/point_cloud.h"
+#include "pcl_conversions/pcl_conversions.h"
+
 namespace pointcloud_to_laserscan
 {
 typedef tf2_ros::MessageFilter<sensor_msgs::msg::PointCloud2> MessageFilter;
@@ -66,13 +69,13 @@ typedef tf2_ros::MessageFilter<sensor_msgs::msg::PointCloud2> MessageFilter;
 * Class to process incoming pointclouds into laserscans.
 * Some initial code was pulled from the defunct turtlebot pointcloud_to_laserscan implementation.
 */
-class PointCloudToLaserScanNode : public rclcpp::Node
+class CutPointCloudNode : public rclcpp::Node
 {
 public:
   POINTCLOUD_TO_LASERSCAN_PUBLIC
-  explicit PointCloudToLaserScanNode(const rclcpp::NodeOptions & options);
+  explicit CutPointCloudNode(const rclcpp::NodeOptions & options);
 
-  ~PointCloudToLaserScanNode() override;
+  ~CutPointCloudNode() override;
 
 private:
   void cloudCallback(sensor_msgs::msg::PointCloud2::ConstSharedPtr cloud_msg);
@@ -102,4 +105,4 @@ private:
 
 }  // namespace pointcloud_to_laserscan
 
-#endif  // POINTCLOUD_TO_LASERSCAN__POINTCLOUD_TO_LASERSCAN_NODE_HPP_
+#endif  // CUT_POINTCLOUD_NODE_HPP_

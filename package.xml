@@ -26,6 +26,8 @@
     <depend>tf2</depend>
     <depend>tf2_ros</depend>
     <depend>tf2_sensor_msgs</depend>
+    <depend>pcl</depend>
+    <depend>pcl_transforms</depend>
 
     <exec_depend>launch</exec_depend>
     <exec_depend>launch_ros</exec_depend>

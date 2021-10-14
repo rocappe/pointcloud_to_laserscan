@@ -11,6 +11,8 @@ find_package(sensor_msgs REQUIRED)
 find_package(tf2 REQUIRED)
 find_package(tf2_ros REQUIRED)
 find_package(tf2_sensor_msgs REQUIRED)
+find_package(PCL REQUIRED)
+find_package(pcl_conversions REQUIRED)
 
 include_directories(include)
 
@@ -50,6 +52,26 @@ rclcpp_components_register_node(pointcloud_to_laserscan
   PLUGIN "pointcloud_to_laserscan::PointCloudToLaserScanNode"
   EXECUTABLE pointcloud_to_laserscan_node)
 
+add_library(cut_pointcloud SHARED
+  src/cut_pointcloud_node.cpp)
+target_compile_definitions(cut_pointcloud
+  PRIVATE "POINTCLOUD_TO_LASERSCAN_BUILDING_DLL")
+ament_target_dependencies(cut_pointcloud
+  "laser_geometry"
+  "message_filters"
+  "rclcpp"
+  "rclcpp_components"
+  "sensor_msgs"
+  "tf2"
+  "tf2_ros"
+  "tf2_sensor_msgs"
+  "pcl_conversions"
+  "PCL"
+)
+rclcpp_components_register_node(cut_pointcloud
+  PLUGIN "pointcloud_to_laserscan::CutPointCloudNode"
+  EXECUTABLE cut_pointcloud_node)
+
 add_executable(dummy_pointcloud_publisher
   src/dummy_pointcloud_publisher.cpp
 )
@@ -61,6 +83,7 @@ ament_target_dependencies(dummy_pointcloud_publisher
 install(TARGETS
   laserscan_to_pointcloud
   pointcloud_to_laserscan
+  cut_pointcloud
   RUNTIME DESTINATION lib
   LIBRARY DESTINATION lib
   ARCHIVE DESTINATION lib)

@@ -38,7 +38,7 @@
  * Author: Paul Bovbel
  */
 
-#include "pointcloud_to_laserscan/pointcloud_to_laserscan_node.hpp"
+#include "pointcloud_to_laserscan/cut_pointcloud_node.hpp"
 
 #include <chrono>
 #include <functional>
@@ -55,8 +55,8 @@
 namespace pointcloud_to_laserscan
 {
 
-PointCloudToLaserScanNode::PointCloudToLaserScanNode(const rclcpp::NodeOptions & options)
-: rclcpp::Node("pointcloud_to_laserscan", options)
+CutPointCloudNode::CutPointCloudNode(const rclcpp::NodeOptions & options)
+: rclcpp::Node("cut_pointcloud", options)
 {
   target_frame_ = this->declare_parameter("target_frame", "");
   tolerance_ = this->declare_parameter("transform_tolerance", 0.01);
@@ -76,8 +76,7 @@ PointCloudToLaserScanNode::PointCloudToLaserScanNode(const rclcpp::NodeOptions &
   use_inf_ = this->declare_parameter("use_inf", true);
   is_optical_ = this->declare_parameter("is_optical", true);
 
-  pub_ = this->create_publisher<sensor_msgs::msg::LaserScan>("scan", rclcpp::SystemDefaultsQoS());
-  cloud_pub_ = this->create_publisher<sensor_msgs::msg::PointCloud2>("mod_cloud", rclcpp::SystemDefaultsQoS());
+  cloud_pub_ = this->create_publisher<sensor_msgs::msg::PointCloud2>("cut_cloud", rclcpp::SystemDefaultsQoS());
 
   using std::placeholders::_1;
   // if pointcloud target frame specified, we need to filter by transform availability
@@ -92,34 +91,34 @@ PointCloudToLaserScanNode::PointCloudToLaserScanNode(const rclcpp::NodeOptions &
       this->get_node_logging_interface(),
       this->get_node_clock_interface());
     message_filter_->registerCallback(
-      std::bind(&PointCloudToLaserScanNode::cloudCallback, this, _1));
+      std::bind(&CutPointCloudNode::cloudCallback, this, _1));
   } else {  // otherwise setup direct subscription
-    sub_.registerCallback(std::bind(&PointCloudToLaserScanNode::cloudCallback, this, _1));
+    sub_.registerCallback(std::bind(&CutPointCloudNode::cloudCallback, this, _1));
   }
 
   subscription_listener_thread_ = std::thread(
-    std::bind(&PointCloudToLaserScanNode::subscriptionListenerThreadLoop, this));
+    std::bind(&CutPointCloudNode::subscriptionListenerThreadLoop, this));
 }
 
-PointCloudToLaserScanNode::~PointCloudToLaserScanNode()
+CutPointCloudNode::~CutPointCloudNode()
 {
   alive_.store(false);
   subscription_listener_thread_.join();
 }
 
-void PointCloudToLaserScanNode::subscriptionListenerThreadLoop()
+void CutPointCloudNode::subscriptionListenerThreadLoop()
 {
   rclcpp::Context::SharedPtr context = this->get_node_base_interface()->get_context();
 
   const std::chrono::milliseconds timeout(100);
   while (rclcpp::ok(context) && alive_.load()) {
-    int subscription_count = pub_->get_subscription_count() +
-      pub_->get_intra_process_subscription_count();
+    int subscription_count = cloud_pub_->get_subscription_count() +
+      cloud_pub_->get_intra_process_subscription_count();
     if (subscription_count > 0) {
       if (!sub_.getSubscriber()) {
         RCLCPP_INFO(
           this->get_logger(),
-          "Got a subscriber to laserscan, starting pointcloud subscriber");
+          "Got a subscriber to cutted pointcloud, starting pointcloud subscriber");
         rclcpp::SensorDataQoS qos;
         qos.keep_last(input_queue_size_);
         sub_.subscribe(this, "cloud_in", qos.get_rmw_qos_profile());
@@ -127,7 +126,7 @@ void PointCloudToLaserScanNode::subscriptionListenerThreadLoop()
     } else if (sub_.getSubscriber()) {
       RCLCPP_INFO(
         this->get_logger(),
-        "No subscribers to laserscan, shutting down pointcloud subscriber");
+        "No subscribers to  cutted pointcloud, shutting down pointcloud subscriber");
       sub_.unsubscribe();
     }
     rclcpp::Event::SharedPtr event = this->get_graph_event();
@@ -136,37 +135,14 @@ void PointCloudToLaserScanNode::subscriptionListenerThreadLoop()
   sub_.unsubscribe();
 }
 
-void PointCloudToLaserScanNode::cloudCallback(
+void CutPointCloudNode::cloudCallback(
   sensor_msgs::msg::PointCloud2::ConstSharedPtr cloud_msg)
 {
   auto start = std::chrono::high_resolution_clock::now();
   // build laserscan output
 
-  auto scan_msg = std::make_unique<sensor_msgs::msg::LaserScan>();
-  scan_msg->header = cloud_msg->header;
-  if (!target_frame_.empty()) {
-    scan_msg->header.frame_id = target_frame_;
-  }
-
-  scan_msg->angle_min = angle_min_;
-  scan_msg->angle_max = angle_max_;
-  scan_msg->angle_increment = angle_increment_;
-  scan_msg->time_increment = 0.0;
-  scan_msg->scan_time = scan_time_;
-  scan_msg->range_min = range_min_;
-  scan_msg->range_max = range_max_;
-
-  // determine amount of rays to create
-  uint32_t ranges_size = std::ceil(
-    (scan_msg->angle_max - scan_msg->angle_min) / scan_msg->angle_increment);
-
-  // determine if laserscan rays with no obstacle data will evaluate to infinity or max_range
-  if (use_inf_) {
-    scan_msg->ranges.assign(ranges_size, std::numeric_limits<double>::infinity());
-  } else {
-    scan_msg->ranges.assign(ranges_size, scan_msg->range_max + inf_epsilon_);
-  }
-
+//https://github.com/ros2/turtlebot2_demo/blob/master/depthimage_to_pointcloud2/src/depthimage_to_pointcloud2_node.cpp
+//https://github.com/ros2/turtlebot2_demo/blob/master/depthimage_to_pointcloud2/include/depthimage_to_pointcloud2/depth_conversions.hpp
 
   // Transform cloud if necessary
   if (is_optical_){
@@ -198,10 +174,9 @@ void PointCloudToLaserScanNode::cloudCallback(
       *iter_cb = *iter_b;
     }
     cloud_msg = cloud;
-    this->cloud_pub_->publish(*cloud_msg);
     
   }
-  else if (scan_msg->header.frame_id != cloud_msg->header.frame_id  && !is_optical_) {
+  else if (target_frame_ != cloud_msg->header.frame_id  && !is_optical_) {
     try {
       auto cloud = std::make_shared<sensor_msgs::msg::PointCloud2>();
       tf2_->transform(*cloud_msg, *cloud, target_frame_, tf2::durationFromSec(tolerance_));
@@ -212,18 +187,16 @@ void PointCloudToLaserScanNode::cloudCallback(
     }
   }
   
-  auto stop = std::chrono::high_resolution_clock::now();
-  auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(stop-start);
-  std::string out;
-  out = std::to_string(duration.count()) + " ms";
-  RCLCPP_INFO(
-          this->get_logger(), out);
 
+  // initialize cutted pointcloud message
+  
+  auto cut_cloud = std::make_shared<pcl::PointCloud<pcl::PointXYZ>>();
   // Iterate through pointcloud
-
-  for (sensor_msgs::PointCloud2ConstIterator<float> iter_x(*cloud_msg, "x"),
-    iter_y(*cloud_msg, "y"), iter_z(*cloud_msg, "z");
-    iter_x != iter_x.end(); ++iter_x, ++iter_y, ++iter_z)
+  sensor_msgs::PointCloud2ConstIterator<float> iter_x(*cloud_msg, "x"), iter_y(*cloud_msg, "y"), iter_z(*cloud_msg, "z");
+  sensor_msgs::PointCloud2ConstIterator<uint8_t>  iter_r(*cloud_msg, "r"), iter_g(*cloud_msg, "g"), iter_b(*cloud_msg, "b");
+ 
+  for (;
+    iter_x != iter_x.end(); ++iter_x, ++iter_y, ++iter_z, ++iter_r, ++iter_g, ++iter_b)
   {
     if (std::isnan(*iter_x) || std::isnan(*iter_y) || std::isnan(*iter_z)) {
       RCLCPP_DEBUG(
@@ -240,7 +213,7 @@ void PointCloudToLaserScanNode::cloudCallback(
         *iter_z, min_height_, max_height_);
       continue;
     }
-
+    
     double range = hypot(*iter_x, *iter_y);
     if (range < range_min_) {
       RCLCPP_DEBUG(
@@ -258,26 +231,31 @@ void PointCloudToLaserScanNode::cloudCallback(
     }
 
     double angle = atan2(*iter_y, *iter_x);
-    if (angle < scan_msg->angle_min || angle > scan_msg->angle_max) {
+    if (angle < angle_min_ || angle > angle_max_) {
       RCLCPP_DEBUG(
         this->get_logger(),
         "rejected for angle %f not in range (%f, %f)\n",
-        angle, scan_msg->angle_min, scan_msg->angle_max);
+        angle, angle_min_, angle_max_);
       continue;
     }
+    (*cut_cloud).emplace_back(pcl::PointXYZ(static_cast<float> (*iter_x), static_cast<float> (*iter_y), static_cast<float> (*iter_z)));
 
-    // overwrite range at laserscan ray if new range is smaller
-    int index = (angle - scan_msg->angle_min) / scan_msg->angle_increment;
-    if (range < scan_msg->ranges[index]) {
-      scan_msg->ranges[index] = range;
-    }
   }
-
-  pub_->publish(std::move(scan_msg));
+  auto cut_cloud_msg = std::make_shared<sensor_msgs::msg::PointCloud2>();
+  pcl::toROSMsg(*cut_cloud, *cut_cloud_msg);
+  cut_cloud_msg->header.frame_id = target_frame_;
+  
+  auto stop = std::chrono::high_resolution_clock::now();
+  auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(stop-start);
+  std::string out;
+  out = std::to_string(duration.count()) + " ms";
+  
+  RCLCPP_INFO(this->get_logger(), out);
+  cloud_pub_->publish(*cut_cloud_msg);
 }
 
 }  // namespace pointcloud_to_laserscan
 
 #include "rclcpp_components/register_node_macro.hpp"
 
-RCLCPP_COMPONENTS_REGISTER_NODE(pointcloud_to_laserscan::PointCloudToLaserScanNode)
+RCLCPP_COMPONENTS_REGISTER_NODE(pointcloud_to_laserscan::CutPointCloudNode)
