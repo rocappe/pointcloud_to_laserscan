@@ -68,12 +68,8 @@ CutPointCloudNode::CutPointCloudNode(const rclcpp::NodeOptions & options)
   max_height_ = this->declare_parameter("max_height", std::numeric_limits<double>::max());
   angle_min_ = this->declare_parameter("angle_min", -M_PI);
   angle_max_ = this->declare_parameter("angle_max", M_PI);
-  angle_increment_ = this->declare_parameter("angle_increment", M_PI / 180.0);
-  scan_time_ = this->declare_parameter("scan_time", 1.0 / 30.0);
   range_min_ = this->declare_parameter("range_min", 0.0);
   range_max_ = this->declare_parameter("range_max", std::numeric_limits<double>::max());
-  inf_epsilon_ = this->declare_parameter("inf_epsilon", 1.0);
-  use_inf_ = this->declare_parameter("use_inf", true);
   is_optical_ = this->declare_parameter("is_optical", true);
 
   cloud_pub_ = this->create_publisher<sensor_msgs::msg::PointCloud2>("cut_cloud", rclcpp::SystemDefaultsQoS());
@@ -190,7 +186,7 @@ void CutPointCloudNode::cloudCallback(
 
   // initialize cutted pointcloud message
   
-  auto cut_cloud = std::make_shared<pcl::PointCloud<pcl::PointXYZ>>();
+  auto cut_cloud = std::make_shared<pcl::PointCloud<pcl::PointXYZRGB>>();
   // Iterate through pointcloud
   sensor_msgs::PointCloud2ConstIterator<float> iter_x(*cloud_msg, "x"), iter_y(*cloud_msg, "y"), iter_z(*cloud_msg, "z");
   sensor_msgs::PointCloud2ConstIterator<uint8_t>  iter_r(*cloud_msg, "r"), iter_g(*cloud_msg, "g"), iter_b(*cloud_msg, "b");
@@ -214,7 +210,7 @@ void CutPointCloudNode::cloudCallback(
       continue;
     }
     
-    double range = hypot(*iter_x, *iter_y);
+    double range = pow(pow(double (*iter_x), 2.0) + pow(double (*iter_y), 2.0) + pow(double (*iter_z), 2.0), 0.5);
     if (range < range_min_) {
       RCLCPP_DEBUG(
         this->get_logger(),
@@ -240,8 +236,14 @@ void CutPointCloudNode::cloudCallback(
     }
     //uint8_t transparancy = 0;
     //auto rgba = std::make_shared<uint32_t>(((*iter_r)<<24) + ((*iter_g)<<16) + ((*iter_b)<<8) + transparancy);
-    (*cut_cloud).emplace_back(pcl::PointXYZ(static_cast<float> (*iter_x), static_cast<float> (*iter_y),
-                                               static_cast<float> (*iter_z)));
+    // uint8_t r = 255, g = 0, b = 0;    // Example: Red color
+    //*uint32_t rgb = ((std::uint32_t)r << 16 | (std::uint32_t)g << 8 | (std::uint32_t)b);
+    //*p.rgb = *reinterpret_cast<float*>(&rgb);
+    auto point = std::make_shared<pcl::PointXYZRGB>(*iter_r, *iter_g, *iter_b);
+    point->x = float (*iter_x);
+    point->y = float (*iter_y);
+    point->z = float (*iter_z);
+    (*cut_cloud).push_back(*point);
 
   }
   auto cut_cloud_msg = std::make_shared<sensor_msgs::msg::PointCloud2>();
