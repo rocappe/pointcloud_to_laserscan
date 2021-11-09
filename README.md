@@ -1,7 +1,9 @@
 # ROS 2 pointcloud <-> laserscan converters
 
 This is a ROS 2 package that provides components to convert `sensor_msgs/msg/PointCloud2` messages to `sensor_msgs/msg/LaserScan` messages and back.
-It is essentially a port of the original ROS 1 package.
+It is essentially a port of the original ROS 1 package.   
+In this repo the pointcloud to laserscan node is modified to achive fast rotation of the pointcloud in case its reference frame and the target reference frame are just rotated by 90°. In particular it is considered the case of an optical frame, with the z axis normal to the camera plane that has to be transformed in a classic laserscan reference frame, with the x axis normal to the camera plane. This case is controlled by the parameters `is_optical`.  
+There is a new node called `cut_pointcloud_node`, made to cut and publish a pointcloud given a bounding volume set by similar parameters to the pointcloud to laserscan node.
 
 ## pointcloud\_to\_laserscan::PointCloudToLaserScanNode
 
